@@ -121,7 +121,7 @@ export async function initWhatsAppDevice() {
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        console.log('[WhatsApp Linked Device] Connection closed. Status code:', statusCode, 'Reconnect:', shouldReconnect);
+        console.log('[WhatsApp Linked Device] Connection closed. Status code:', statusCode, 'Error:', lastDisconnect?.error);
 
         globalState.sock = null;
         globalState.qrDataUrl = null;
