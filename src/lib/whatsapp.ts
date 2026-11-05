@@ -14,7 +14,7 @@ export function getConfig(): WhatsAppConfig {
   let fileConfig: WhatsAppConfig = {
     phoneNumberId: '',
     accessToken: '',
-    verifyToken: 'voltpulse_verify_secret_123',
+    verifyToken: 'findurgad',
     ownerPhone: '918921901702',
   };
 
