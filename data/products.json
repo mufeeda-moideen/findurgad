@@ -1,0 +1,32 @@
+[
+  {
+    "id": "prod_1",
+    "name": "TWS Bluetooth Earbuds (Pro ANC)",
+    "adId": "act_49182371",
+    "imageUrl": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=800&auto=format&fit=crop&q=80",
+    "description": "Active Noise Cancellation, 48-hour total playback with digital battery display case, IPX5 water resistance.",
+    "category": "Audio",
+    "voiceUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    "voiceFileName": "earbuds_guide.mp3"
+  },
+  {
+    "id": "prod_2",
+    "name": "Ultra Retina Smartwatch",
+    "adId": "act_78129034",
+    "imageUrl": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=800&auto=format&fit=crop&q=80",
+    "description": "1.96-inch HD AMOLED display, Bluetooth calling, heart rate & SpO2 tracking, 12-day battery backup.",
+    "category": "Gadgets",
+    "voiceUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    "voiceFileName": "smartwatch_guide.mp3"
+  },
+  {
+    "id": "prod_3",
+    "name": "22.5W Fast 20000mAh Power Bank",
+    "adId": "act_92384711",
+    "imageUrl": "https://images.unsplash.com/photo-1609091839311-d5365f9ff1c5?w=800&auto=format&fit=crop&q=80",
+    "description": "22.5W Super Fast Charging, dual USB-A + Type-C PD output, airline approved, digital battery display.",
+    "category": "Accessories",
+    "voiceUrl": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+    "voiceFileName": "powerbank_specs.mp3"
+  }
+]
