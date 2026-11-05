@@ -33,6 +33,10 @@ import {
   CreditCard,
   Headphones,
   SlidersHorizontal,
+  QrCode,
+  Smartphone,
+  RefreshCw,
+  Power,
 } from 'lucide-react';
 
 interface Product {
@@ -86,17 +90,130 @@ export default function FindUrGadAdmin() {
   // Toast
   const [toast, setToast] = useState<string | null>(null);
 
+  // WhatsApp Device Connection State
+  const [isDeviceModalOpen, setIsDeviceModalOpen] = useState(false);
+  const [deviceStatus, setDeviceStatus] = useState<{
+    status: 'disconnected' | 'connecting' | 'qr_ready' | 'connected' | 'error';
+    qrDataUrl: string | null;
+    connectedPhone: string | null;
+    lastError: string | null;
+  }>({
+    status: 'disconnected',
+    qrDataUrl: null,
+    connectedPhone: null,
+    lastError: null,
+  });
+  const [isTriggeringConnect, setIsTriggeringConnect] = useState(false);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+
   // Check login on load
   useEffect(() => {
     const auth = localStorage.getItem('findurgad_auth');
     if (auth === 'true') {
       setIsAuthenticated(true);
       fetchProducts();
+      fetchDeviceStatus();
     } else {
       setIsAuthenticated(false);
       setLoading(false);
     }
   }, []);
+
+  // Poll device status while device modal is open
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isDeviceModalOpen) {
+      interval = setInterval(() => {
+        fetchDeviceStatus();
+      }, 2500);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isDeviceModalOpen]);
+
+  const fetchDeviceStatus = async (): Promise<string | null> => {
+    try {
+      const res = await fetch('/api/whatsapp/device');
+      if (res.ok) {
+        const data = await res.json();
+        setDeviceStatus({
+          status: data.status || 'disconnected',
+          qrDataUrl: data.qrDataUrl || null,
+          connectedPhone: data.connectedPhone || null,
+          lastError: data.lastError || null,
+        });
+        return data.status;
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  };
+
+  const startDeviceConnection = async () => {
+    setIsTriggeringConnect(true);
+    setDeviceStatus((prev) => ({ ...prev, status: 'connecting', lastError: null }));
+    try {
+      const res = await fetch('/api/whatsapp/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'connect' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeviceStatus({
+          status: data.status || 'connecting',
+          qrDataUrl: data.qrDataUrl || null,
+          connectedPhone: data.connectedPhone || null,
+          lastError: data.lastError || null,
+        });
+      } else if (data.error) {
+        setDeviceStatus((prev) => ({ ...prev, status: 'error', lastError: data.error }));
+      }
+    } catch {
+      setDeviceStatus((prev) => ({ ...prev, status: 'error', lastError: 'Failed to initiate connection' }));
+    } finally {
+      setIsTriggeringConnect(false);
+    }
+  };
+
+  const disconnectDevice = async () => {
+    if (!confirm('Are you sure you want to disconnect this WhatsApp number? Automation will pause until re-linked.')) {
+      return;
+    }
+    setIsDisconnecting(true);
+    try {
+      const res = await fetch('/api/whatsapp/device', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disconnect' }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setDeviceStatus({
+          status: 'disconnected',
+          qrDataUrl: null,
+          connectedPhone: null,
+          lastError: null,
+        });
+        showToast('WhatsApp device unlinked successfully');
+      }
+    } catch {
+      showToast('Error unlinking WhatsApp device');
+    } finally {
+      setIsDisconnecting(false);
+    }
+  };
+
+  const openDeviceModal = () => {
+    setIsDeviceModalOpen(true);
+    fetchDeviceStatus().then((currentStatus) => {
+      if (!currentStatus || currentStatus === 'disconnected') {
+        startDeviceConnection();
+      }
+    });
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -461,7 +578,30 @@ export default function FindUrGadAdmin() {
           </div>
 
           {/* Simple Header Actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            {/* WhatsApp Device Connection Button / Live Status */}
+            <button
+              onClick={openDeviceModal}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition shadow-xs active:scale-95 border ${
+                deviceStatus.status === 'connected'
+                  ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-800 hover:bg-emerald-500/20'
+                  : 'bg-white border-slate-200/90 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+              }`}
+              title="WhatsApp Multi-Device Connection"
+            >
+              {deviceStatus.status === 'connected' ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  <span>+{deviceStatus.connectedPhone || 'WhatsApp'}</span>
+                </>
+              ) : (
+                <>
+                  <Smartphone className="w-3.5 h-3.5 text-slate-500" />
+                  <span>Link WhatsApp</span>
+                </>
+              )}
+            </button>
+
             <button
               onClick={() => setIsAddModalOpen(true)}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#C6FF00] hover:bg-[#b4ea00] text-[#111111] text-xs font-bold transition shadow-xs active:scale-95"
@@ -802,6 +942,173 @@ export default function FindUrGadAdmin() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* WhatsApp Linked Device Modal */}
+      {isDeviceModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-100 relative space-y-6 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    WhatsApp Connection
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Multi-Device QR Code Automation
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setIsDeviceModalOpen(false)}
+                className="p-1.5 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Content Based on Status */}
+            {deviceStatus.status === 'connected' ? (
+              <div className="space-y-5">
+                <div className="p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold text-sm">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>WhatsApp Connected</span>
+                  </div>
+                  <p className="text-xs text-emerald-700 leading-relaxed">
+                    Linked to: <span className="font-mono font-bold">+{deviceStatus.connectedPhone}</span>
+                  </p>
+                  <p className="text-[11px] text-emerald-600/90 leading-relaxed pt-1 border-t border-emerald-200/50">
+                    Meta Click-to-WhatsApp ads will automatically receive your product photo, description, and staff voice note instantly.
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-2 text-slate-800 font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-[#88bb00]" />
+                    <span>Automation Active:</span>
+                  </div>
+                  <ul className="space-y-1.5 pl-5 list-disc text-[11px] text-slate-600">
+                    <li>Instant photo & caption delivery</li>
+                    <li>Authentic Push-To-Talk voice memo waveform</li>
+                    <li>You can chat manually from your phone app anytime</li>
+                  </ul>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={disconnectDevice}
+                    disabled={isDisconnecting}
+                    className="flex-1 py-2.5 px-4 rounded-xl border border-red-200 hover:bg-red-50 text-red-600 font-bold text-xs transition flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <Power className="w-3.5 h-3.5" />
+                    <span>{isDisconnecting ? 'Unlinking...' : 'Disconnect Phone'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsDeviceModalOpen(false)}
+                    className="py-2.5 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            ) : deviceStatus.status === 'qr_ready' && deviceStatus.qrDataUrl ? (
+              <div className="space-y-5 text-center">
+                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 flex flex-col items-center justify-center">
+                  <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs inline-block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={deviceStatus.qrDataUrl}
+                      alt="WhatsApp QR Code"
+                      className="w-56 h-56 object-contain"
+                    />
+                  </div>
+                  <p className="text-[11px] font-semibold text-slate-500 mt-2 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                    Scan with your WhatsApp Business app
+                  </p>
+                </div>
+
+                <div className="space-y-2 text-left bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                    How to Link:
+                  </h4>
+                  <ol className="text-xs text-slate-600 space-y-1.5 list-decimal pl-4">
+                    <li>Open <strong>WhatsApp Business</strong> on your phone</li>
+                    <li>Tap <strong>Settings</strong> (or <strong>⋮ Menu</strong> on Android) ➔ <strong>Linked Devices</strong></li>
+                    <li>Tap <strong>Link a Device</strong> and point your camera here</li>
+                  </ol>
+                </div>
+
+                <div className="flex items-center justify-between gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={startDeviceConnection}
+                    disabled={isTriggeringConnect}
+                    className="text-xs font-semibold text-slate-500 hover:text-slate-900 flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isTriggeringConnect ? 'animate-spin' : ''}`} />
+                    <span>Refresh QR</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsDeviceModalOpen(false)}
+                    className="py-2 px-4 rounded-xl border border-slate-200 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            ) : deviceStatus.status === 'connecting' ? (
+              <div className="py-12 flex flex-col items-center justify-center space-y-3 text-center">
+                <div className="w-10 h-10 rounded-full border-3 border-slate-200 border-t-emerald-500 animate-spin" />
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-slate-900">Connecting to WhatsApp...</h4>
+                  <p className="text-xs text-slate-500">Generating secure pairing QR code</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl space-y-2 text-xs text-slate-600">
+                  <p className="font-semibold text-slate-800">
+                    Link your existing WhatsApp Business number without buying a new SIM or deleting your account.
+                  </p>
+                  <p className="text-[11px] leading-relaxed text-slate-500">
+                    This works like WhatsApp Web. It connects securely to your current phone app so automated replies are sent directly from your authentic business number.
+                  </p>
+                </div>
+
+                {deviceStatus.lastError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-xs flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{deviceStatus.lastError}</span>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={startDeviceConnection}
+                    disabled={isTriggeringConnect}
+                    className="w-full py-3 bg-[#111111] hover:bg-black text-[#C6FF00] rounded-xl text-xs font-bold uppercase tracking-wider transition shadow-md flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  >
+                    <QrCode className="w-4 h-4 text-[#C6FF00]" />
+                    <span>{isTriggeringConnect ? 'Generating QR...' : 'Generate QR Code to Link'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
